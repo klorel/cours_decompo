@@ -1,0 +1,15 @@
+param: AREA_TS: CONSO EOLIEN := include data.txt;
+
+param OLD_PMAX: "THERMIQUE" "NUCLEAIRE" := include capacite.txt;
+
+param: PROD: 		ENERGY_COST	POWER_COST:=
+	"NUCLEAIRE"	10			0
+	"CHARBON"	25			0
+	"CCGT"		50			120e-1
+	"TAC"		100			60e-1
+;
+
+set NEW_PROD := "CCGT", "TAC";
+
+
+set INTERCO := include interco.txt;

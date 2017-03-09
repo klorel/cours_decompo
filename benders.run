@@ -1,0 +1,40 @@
+
+model benders.mod;
+
+minimize coordination_obj: alpha;
+
+repeat{
+	let CURRENT_ITE := CURRENT_ITE+1;
+	let ITERATIONS := ITERATIONS union{CURRENT_ITE};
+	problem coordination;
+	#expand;
+	
+	option xpress_options 'outlev=1 threads=1 presolve=1';
+	
+	solve > trash_coordination.log;
+	let LB := alpha;
+	let{area in AREA, prod in NEW_PROD}CUT_POINT[CURRENT_ITE, area, prod] := p_max_new[area, prod];
+	#expand;
+	problem simulation;	
+	
+	option xpress_options 'outlev=1 threads=1 presolve=1';
+	solve simulation_cost > trash_simulation.log;
+	#display p_max_new;
+	
+	let CUT_RHS[CURRENT_ITE] := simulation_cost;
+	let UB := overall_cost;
+	if UB < BEST_UB then {
+		let BEST_UB := UB;
+	};
+	
+	let{area in AREA, prod in NEW_PROD}CUT_COEFF[CURRENT_ITE, area, prod] := sum{ts in USED_TS}ctr_pmax_new[area, prod, ts];
+	
+	if BEST_UB - LB <= EPS then{
+		let STOP := 1;
+	};
+	printf "%6d%20.3f%20.3f%20.3f\n", CURRENT_ITE, LB, UB, BEST_UB;
+	
+	
+} while STOP != 1;
+
+display p_max_new;

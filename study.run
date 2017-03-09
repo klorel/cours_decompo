@@ -1,0 +1,21 @@
+reset;
+option solver amplxpress;
+option xpress_options 'outlev=1 threads=1 barrier';
+
+option presolve 0;
+
+model study.mod;
+data study.dat;
+
+display card(AREA);
+display card(AREA);
+
+solve;
+#display sum{area in AREA, ts in TS}lol[area, ts];
+display p_max_new;
+
+#display INTERCO;
+
+#display NEIGHBOR;
+
+display NB_NEIGHBOR;

@@ -1,0 +1,94 @@
+
+model benders_multi.mod;
+
+# the point used in the bundle
+param BUNDLE_POINT{AREA, NEW_PROD} default 0;
+param BUNDLE_UB default +1e20;
+param BUNDLE_LB default -1e20;
+# tolerance used in the SS or NS 
+param BUNDLE_TOL := .001;
+
+param NB_SS default 0;
+param NB_NS default 0;
+param NB_UPDATE default 10;
+
+param BUNDLE_WEIGHT default 1e-2;
+param BUNDLE_PREDICTION;
+param BUNDLE_STEP symbolic;
+
+param BUNDLE_VALUE default 0;
+
+
+minimize coordination_obj: alpha+BUNDLE_WEIGHT*sum{area in AREA,prod in NEW_PROD}(p_max_new[area, prod]-BUNDLE_POINT[area, prod])^2;
+
+# option gentimes 1;
+
+repeat{
+	let CURRENT_ITE := CURRENT_ITE+1;
+	let ITERATIONS := ITERATIONS union{CURRENT_ITE};
+	problem coordination;
+	#expand;
+	
+	option xpress_options 'outlev=1 threads=1 presolve=1';
+	
+	solve > trash_coordination.log;
+	let LB := alpha;
+	let BUNDLE_LB := alpha;
+	
+	let BUNDLE_PREDICTION := BUNDLE_LB-BUNDLE_UB;
+	let{area in AREA, prod in NEW_PROD}CUT_POINT[CURRENT_ITE, area, prod] := p_max_new[area, prod];
+	
+	let BUNDLE_VALUE := max{area in AREA,prod in NEW_PROD}abs(p_max_new[area, prod]-BUNDLE_POINT[area, prod]);
+	#expand;
+	problem simulation;	
+	
+	option xpress_options 'outlev=1 threads=1 presolve=1';
+	solve simulation_cost > trash_simulation.log;
+	#display p_max_new;
+	
+	let{week in WEEK} CUT_RHS[CURRENT_ITE, week] :=
+		(
+			+sum{area in AREA, prod in PROD, (week, start, end) in WEEK_START_END, ts in start .. end-1}p[area, prod, ts]*ENERGY_COST[prod]
+			+sum{area in AREA, prod in NEW_PROD, (week, start, end) in WEEK_START_END, ts in start .. end-1}p_new[area, prod, ts]*ENERGY_COST[prod]
+			+sum{area in AREA, (week, start, end) in WEEK_START_END, ts in start .. end-1}lol[area, ts]*VALUE_OF_LOSS_LOAD
+			+sum{(neighbor1, neighbor2) in INTERCO, (week, start, end) in WEEK_START_END, ts in start .. end-1}1e-4 * p_interco[neighbor1, neighbor2, ts]
+		)/N_WEEK;
+	let UB := overall_cost;	
+	
+	if UB - BUNDLE_UB <= BUNDLE_TOL * BUNDLE_PREDICTION or CURRENT_ITE == 1 then{
+		# Serious Step
+		let BUNDLE_STEP := 'SS';
+		let{area in AREA,prod in NEW_PROD} BUNDLE_POINT[area, prod] := p_max_new[area, prod];
+		let BUNDLE_UB := UB;
+		
+		let NB_SS := NB_SS +1;
+		let NB_NS := 0;
+	}else{
+		# Null Step
+		let BUNDLE_STEP := 'NS';
+		
+		let NB_NS := NB_NS +1;
+		let NB_SS := 0;
+	};
+	
+	
+	if NB_NS > NB_UPDATE then {
+		let BUNDLE_WEIGHT := BUNDLE_WEIGHT * 10;
+		let NB_NS := 0;
+	};
+	if NB_SS > NB_UPDATE then { 
+		let BUNDLE_WEIGHT := BUNDLE_WEIGHT * 0.1;
+		let NB_SS := 0;
+	};
+	let{area in AREA, prod in NEW_PROD, week in WEEK}CUT_COEFF[CURRENT_ITE, area, prod, week] := sum{(week, start, end) in WEEK_START_END, ts in start .. end-1}ctr_pmax_new[area, prod, ts];
+	
+	printf "%6d%6s%20.3f%20.3f%20.3f%20.10f%20.3f%20.3f\n", CURRENT_ITE, BUNDLE_STEP, BUNDLE_LB, UB, BUNDLE_UB, BUNDLE_WEIGHT, BUNDLE_VALUE, BUNDLE_PREDICTION;
+	
+	if CURRENT_ITE>1 and -BUNDLE_PREDICTION <= 1e-6 then {
+		let STOP := 1;
+	};
+	
+	
+} while STOP != 1;
+
+display p_max_new;

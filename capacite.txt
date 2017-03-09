@@ -1,0 +1,12 @@
+"Auvergne-Rhône-Alpes"		794		13629
+"Bourgogne-Franche-Comté"	208		0
+"Bretagne"					591		0
+"Centre-Val de Loire"		87		11697
+"Grand-Est"					3033	12547
+"Hauts-de-France"			1922	5526
+"Ile-de-France"				2737	0
+"Normandie"					1135	10483
+"Nouvelle-Aquitaine"		428		6780
+"Occitanie"					1384	2625
+"PACA"						2282	0
+"Pays-de-la-Loire"			1773	0
