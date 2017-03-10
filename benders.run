@@ -1,7 +1,10 @@
 
 model benders.mod;
 
+
 minimize coordination_obj: alpha;
+
+param OTHER_ITERATION default 0;
 
 repeat{
 	let CURRENT_ITE := CURRENT_ITE+1;
@@ -19,16 +22,54 @@ repeat{
 	
 	option xpress_options 'outlev=1 threads=1 presolve=1';
 	solve simulation_cost > trash_simulation.log;
+	#solve overall_cost > trash_simulation.log;
 	#display p_max_new;
 	
 	let CUT_RHS[CURRENT_ITE] := simulation_cost;
+
 	let UB := overall_cost;
 	if UB < BEST_UB then {
 		let BEST_UB := UB;
 	};
 	
-	let{area in AREA, prod in NEW_PROD}CUT_COEFF[CURRENT_ITE, area, prod] := sum{ts in USED_TS}ctr_pmax_new[area, prod, ts];
+	let{area in AREA, prod in NEW_PROD}CUT_COEFF[CURRENT_ITE, area, prod] := sum{ts in USED_TS}ctr_pmax_new[area, prod, ts];		
+	###
+	problem other_simulation;	
+	let{area in AREA, prod in NEW_PROD}OTHER_CENTER[area, prod] := p_max_new[area, prod];
 	
+	for{area in AREA, prod in NEW_PROD}{
+		if OTHER_CENTER[area, prod] < 1 then {
+			let OTHER_LB[area, prod] := 0;
+			let OTHER_UB[area, prod] := 1;
+		} else if OTHER_CENTER[area, prod] > 60e3-1 then{
+			let OTHER_LB[area, prod] := 1;
+			let OTHER_UB[area, prod] := 0;
+		}else{
+			let OTHER_LB[area, prod] := 0;
+			let OTHER_UB[area, prod] := 0;
+		};
+	};
+	option xpress_options 'outlev=1 threads=1 presolve=1 outlev=1';
+	solve overall_cost > trash_other.log;
+	let OTHER_ITERATION := OTHER_ITERATION+1;
+	let OTHER_ITERATIONS := OTHER_ITERATIONS union{OTHER_ITERATION};
+	
+	let{area in AREA, prod in NEW_PROD}OTHER_RHS  [OTHER_ITERATION] := overall_cost;
+	let{area in AREA, prod in NEW_PROD}OTHER_POINT[OTHER_ITERATION, area, prod] := p_max_new[area, prod];	
+	let{area in AREA, prod in NEW_PROD}OTHER_COEFF[OTHER_ITERATION, area, prod] := POWER_COST[prod]+sum{ts in USED_TS}ctr_pmax_new[area, prod, ts];
+
+	# display{area in AREA, prod in NEW_PROD}( sum{ts in USED_TS}ctr_pmax_new[area, prod, ts], lower_p_max_new[area, prod], upper_p_max_new[area, prod]);
+	printf{area in AREA, prod in NEW_PROD:abs(CUT_COEFF[CURRENT_ITE, area, prod]-OTHER_COEFF[CURRENT_ITE, area, prod])>1e-3}
+	 "%30s%10s%10s%20.6f%20.6f\n", area, prod,  
+		if CUT_POINT[CURRENT_ITE, area, prod] < 1e-3 then
+			"AT_LOWER"
+		else if CUT_POINT[CURRENT_ITE, area, prod] > 60e3-1 then 
+			"AT_UPPER"
+		else
+			"FREE"
+		, CUT_COEFF[CURRENT_ITE, area, prod]
+		, OTHER_COEFF[OTHER_ITERATION, area, prod];
+	###
 	if BEST_UB - LB <= EPS then{
 		let STOP := 1;
 	};
