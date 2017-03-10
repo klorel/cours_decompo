@@ -87,8 +87,7 @@ repeat{
 	
 	if CURRENT_ITE>1 and -BUNDLE_PREDICTION <= 1e-6 then {
 		let STOP := 1;
-	};
-	
+	};	
 	
 } while STOP != 1;
 
