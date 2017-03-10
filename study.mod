@@ -7,7 +7,7 @@ param MIN_TS := min{ts in TS}ts;
 param MAX_TS := max{ts in TS}ts;
 
 
-set WEEK := {week in TS: (week+1)*168<=MAX_TS and week<2};
+set WEEK := {week in TS: (week+1)*168<=MAX_TS and week<20};
 
 param N_WEEK := card(WEEK);
 param N_PDT := 1;

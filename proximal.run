@@ -77,10 +77,12 @@ repeat{
 	let{area in AREA, prod in NEW_PROD}CUT_COEFF[CURRENT_ITE, area, prod] := sum{ts in USED_TS}ctr_pmax_new[area, prod, ts];
 	
 	printf "%6d%6s%20.3f%20.3f%20.3f%20.10f%20.3f%20.3f\n", CURRENT_ITE, BUNDLE_STEP, BUNDLE_LB, UB, BUNDLE_UB, BUNDLE_WEIGHT, BUNDLE_VALUE, BUNDLE_PREDICTION;
-	
+
 	if CURRENT_ITE>1 and -BUNDLE_PREDICTION <= 1e-6 then {
-		let STOP := 1;
-		}
+		display BUNDLE_LB, BUNDLE_UB;
+		display BUNDLE_UB-BUNDLE_LB;
+		if BUNDLE_UB - BUNDLE_LB<= 1e-1 then 
+			let STOP := 1;
 	};
 	
 } while STOP != 1;
