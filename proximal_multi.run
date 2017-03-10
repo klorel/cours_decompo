@@ -95,6 +95,7 @@ repeat{
 display p_max_new;
 
 let BUNDLE_WEIGHT := 0;
+let BEST_UB := BUNDLE_UB;
 let STOP := 0;
 repeat{
 	let CURRENT_ITE := CURRENT_ITE+1;
