@@ -1,16 +1,16 @@
 
-model benders_multi.mod;
+model benders.mod;
 
 # the point used in the bundle
 param BUNDLE_POINT{AREA, NEW_PROD} default 0;
 param BUNDLE_UB default +1e20;
 param BUNDLE_LB default -1e20;
 # tolerance used in the SS or NS 
-param BUNDLE_TOL := .001;
+param BUNDLE_TOL := .1;
 
 param NB_SS default 0;
 param NB_NS default 0;
-param NB_UPDATE default 10;
+param NB_UPDATE default 5;
 
 param BUNDLE_WEIGHT default 1e-2;
 param BUNDLE_PREDICTION;
@@ -18,11 +18,21 @@ param BUNDLE_STEP symbolic;
 
 param BUNDLE_VALUE default 0;
 
+param N_BRANCH := 2;
+param PENALTY default 10;
+param WIDTH default 10;
 
-minimize coordination_obj: alpha+BUNDLE_WEIGHT*sum{area in AREA,prod in NEW_PROD}(p_max_new[area, prod]-BUNDLE_POINT[area, prod])^2;
+var pos{area in AREA,prod in NEW_PROD, i in 1..N_BRANCH} >= 0, <= WIDTH*i*10;
+var neg{area in AREA,prod in NEW_PROD, i in 1..N_BRANCH} >= 0, <= WIDTH*i*10;
+
+subject to linbundle_lb{area in AREA,prod in NEW_PROD}: p_max_new[area, prod] <= BUNDLE_POINT[area, prod] + WIDTH + sum{i in 1..N_BRANCH}pos[area, prod, i];
+subject to linbundle_ub{area in AREA,prod in NEW_PROD}: p_max_new[area, prod] >= BUNDLE_POINT[area, prod] - WIDTH - sum{i in 1..N_BRANCH}neg[area, prod, i];
+
+minimize coordination_obj: alpha+sum{area in AREA, prod in NEW_PROD, i in 1..N_BRANCH}(pos[area, prod, i]+neg[area, prod, i])*PENALTY^i;
 
 # option gentimes 1;
 
+printf "%6s%6s%20s%20s%20s%20s%20s%20s\n", 'ITE', 'STEP', 'LB', 'UB', 'BUNDLE_UB', 'PENALTY', 'BUNDLE_VALUE', 'BUNDLE_PREDICTION';
 repeat{
 	let CURRENT_ITE := CURRENT_ITE+1;
 	let ITERATIONS := ITERATIONS union{CURRENT_ITE};
@@ -32,6 +42,7 @@ repeat{
 	option xpress_options 'outlev=1 threads=1 presolve=1';
 	
 	solve > trash_coordination.log;
+	if solve_result == 'failure' then exit;
 	let LB := alpha;
 	let BUNDLE_LB := alpha;
 	
@@ -44,16 +55,10 @@ repeat{
 	
 	option xpress_options 'outlev=1 threads=1 presolve=1';
 	solve simulation_cost > trash_simulation.log;
+	if solve_result == 'failure' then exit;
 	#display p_max_new;
 	
-	let{week in WEEK} CUT_RHS[CURRENT_ITE, week] :=
-		(
-			+sum{area in AREA, prod in PROD, (week, start, end) in WEEK_START_END, ts in start .. end-1}p[area, prod, ts]*ENERGY_COST[prod]
-			+sum{area in AREA, prod in NEW_PROD, (week, start, end) in WEEK_START_END, ts in start .. end-1}p_new[area, prod, ts]*ENERGY_COST[prod]
-			+sum{area in AREA, (week, start, end) in WEEK_START_END, ts in start .. end-1}lol[area, ts]*VALUE_OF_LOSS_LOAD
-			+sum{(neighbor1, neighbor2) in INTERCO, (week, start, end) in WEEK_START_END, ts in start .. end-1}1e-4 * p_interco[neighbor1, neighbor2, ts]
-		)/N_WEEK;
-
+	let CUT_RHS[CURRENT_ITE] := simulation_cost;
 	let UB := overall_cost;	
 	
 	if UB - BUNDLE_UB <= BUNDLE_TOL * BUNDLE_PREDICTION or CURRENT_ITE == 1 then{
@@ -74,20 +79,26 @@ repeat{
 	
 	
 	if NB_NS > NB_UPDATE then {
-		let BUNDLE_WEIGHT := BUNDLE_WEIGHT * 10;
 		let NB_NS := 0;
+		if PENALTY^N_BRANCH < 1e6 then {
+			let PENALTY := PENALTY * 10;
+			#let WIDTH := WIDTH * 0.5;	
+		};
 	};
 	if NB_SS > NB_UPDATE then { 
-		let BUNDLE_WEIGHT := BUNDLE_WEIGHT * 0.1;
+		if PENALTY*0.5 > 1 then {
+			let PENALTY := PENALTY * 0.5;
+			#let WIDTH := WIDTH * 2;
+		};
 		let NB_SS := 0;
 	};
-	let{area in AREA, prod in NEW_PROD, week in WEEK}CUT_COEFF[CURRENT_ITE, area, prod, week] := sum{(week, start, end) in WEEK_START_END, ts in start .. end-1}ctr_pmax_new[area, prod, ts];
+	let{area in AREA, prod in NEW_PROD}CUT_COEFF[CURRENT_ITE, area, prod] := sum{ts in USED_TS}ctr_pmax_new[area, prod, ts];
 	
-	printf "%6d%6s%20.10E%20.10E%20.10E%20.10f%20.10E%20.10E\n", CURRENT_ITE, BUNDLE_STEP, BUNDLE_LB, UB, BUNDLE_UB, BUNDLE_WEIGHT, BUNDLE_VALUE, BUNDLE_PREDICTION;
-	
+	printf "%6d%6s%20.10E%20.10E%20.10E%20.10E%20.10E%20.10E\n", CURRENT_ITE, BUNDLE_STEP, BUNDLE_LB, UB, BUNDLE_UB, PENALTY, BUNDLE_VALUE, BUNDLE_PREDICTION;
+
 	if CURRENT_ITE>1 and -BUNDLE_PREDICTION <= 1e-6 then {
 		let STOP := 1;
-	};	
+	};
 	
 } while STOP != 1;
 

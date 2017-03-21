@@ -1,3 +1,9 @@
+
+option solver amplxpress;
+option presolve 0;
+option solver_msg 0;
+option solver cplexamp;
+
 set AREA_TS  dimen 2;
 
 set TS   := union{(area, ts) in AREA_TS}{ts};
@@ -10,7 +16,7 @@ param MAX_TS := max{ts in TS}ts;
 set WEEK := {week in TS: (week+1)*168<=MAX_TS and week<200};
 
 param N_WEEK := card(WEEK);
-param N_PDT := 168;
+param N_PDT := 24;
 set WEEK_START_END := setof{week in WEEK}(week, week*168, week*168+N_PDT);
 
 set USED_TS := union{(week, start, end) in WEEK_START_END}{start..end-1};

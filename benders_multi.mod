@@ -1,9 +1,4 @@
 reset;
-option solver amplxpress;
-option presolve 0;
-
-option solver_msg 0;
-
 model study.mod;
 data study.dat;
 
