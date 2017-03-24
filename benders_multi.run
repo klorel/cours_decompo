@@ -38,7 +38,7 @@ repeat{
 	if BEST_UB - LB <= EPS then{
 		let STOP := 1;
 	};
-	printf "%6d%20.3f%20.3f%20.3f\n", CURRENT_ITE, LB, UB, BEST_UB;
+	printf "%6d%20.10E%20.10E%20.10E\n", CURRENT_ITE, LB, UB, BEST_UB;
 	
 	
 } while STOP != 1;
